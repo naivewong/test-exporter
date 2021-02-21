@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -11,21 +13,24 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-//Define the metrics we wish to expose
-var test1Metric = prometheus.NewGauge(prometheus.GaugeOpts{
-	Name: "test1_metric", Help: "Test 1"})
-
-var test2Metric = prometheus.NewGauge(prometheus.GaugeOpts{
-	Name: "test2_metric", Help: "Test 2"})
-
-
 func main() {
-	//Register metrics with prometheus
-	prometheus.MustRegister(test1Metric)
-	prometheus.MustRegister(test2Metric)
+	metrics := []prometheus.Gauge{}
 
-	test1Metric.Set(0)
-	test2Metric.Set(0)
+	if len(os.Args) != 3 {
+		panic("go run main.go #metrics port")
+	}
+
+	//Register metrics with prometheus
+	numMetrics, _ := strconv.Atoi(os.Args[1])
+	for i := 0; i < numMetrics; i++ {
+		lbs := prometheus.Labels{}
+		for j := 0; j < 20; j++ {
+			lbs[fmt.Sprintf("label%d", j)] = fmt.Sprintf("label%d", i)
+		}
+		metrics = append(metrics, prometheus.NewGauge(prometheus.GaugeOpts{Name: fmt.Sprintf("test%d_metric", i), Help: fmt.Sprintf("Test %d", i), ConstLabels: lbs}))
+		prometheus.MustRegister(metrics[len(metrics) - 1])
+		metrics[len(metrics) - 1].Set(0)
+	}
 
 	ticker := time.NewTicker(2 * time.Second)
 	quit := make(chan struct{})
@@ -33,8 +38,9 @@ func main() {
 		for {
 			select {
 			case <- ticker.C:
-				test1Metric.Add(float64(2))
-				test2Metric.Add(float64(2))
+				for i := 0; i < len(metrics); i++ {
+					metrics[i].Add(float64(2))
+				}
 				case <- quit:
 				ticker.Stop()
 				return
@@ -46,6 +52,6 @@ func main() {
 	//any metrics on the /metrics endpoint.
 	http.Handle("/metrics", promhttp.Handler())
 	logger := level.NewFilter(log.NewLogfmtLogger(os.Stdout), level.AllowInfo())
-	level.Info(logger).Log("msg", "Beginning to serve on port :8080")
-	http.ListenAndServe(":8080", nil)
+	level.Info(logger).Log("msg", "Beginning to serve on port :" + os.Args[2])
+	http.ListenAndServe(":" + os.Args[2], nil)
 }
