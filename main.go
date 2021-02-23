@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -25,9 +26,9 @@ func main() {
 	for i := 0; i < numMetrics; i++ {
 		lbs := prometheus.Labels{}
 		for j := 0; j < 20; j++ {
-			lbs[fmt.Sprintf("label%d", j)] = fmt.Sprintf("label%d", i)
+			lbs[fmt.Sprintf("label%d_%s", j, os.Args[2])] = fmt.Sprintf("label%d", i)
 		}
-		metrics = append(metrics, prometheus.NewGauge(prometheus.GaugeOpts{Name: fmt.Sprintf("test%d_metric", i), Help: fmt.Sprintf("Test %d", i), ConstLabels: lbs}))
+		metrics = append(metrics, prometheus.NewGauge(prometheus.GaugeOpts{Name: fmt.Sprintf("test%d_metric_%s", i, os.Args[2]), Help: fmt.Sprintf("Test %d", i), ConstLabels: lbs}))
 		prometheus.MustRegister(metrics[len(metrics) - 1])
 		metrics[len(metrics) - 1].Set(0)
 	}
@@ -39,7 +40,7 @@ func main() {
 			select {
 			case <- ticker.C:
 				for i := 0; i < len(metrics); i++ {
-					metrics[i].Add(float64(2))
+					metrics[i].Add(rand.Float64())
 				}
 				case <- quit:
 				ticker.Stop()
